@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MC Item Exchange</title>
+<style>
+  :root{--bg:#15171c;--panel:#1e2128;--panel2:#262a33;--line:#343946;--text:#e8eaf0;--muted:#8e95a6;--accent:#5ed36b;--accent2:#3fa24b;--warn:#e8b84a;--danger:#e5604f}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:16px}
+  .wrap{max-width:560px;margin:0 auto}
+  h1{font-size:1.5rem;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:.9rem;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
+  .step{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px}
+  .num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent2);color:#04130a;font-size:.8rem;font-weight:700}
+  input,select,button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  input,select{width:100%}
+  input:focus,select:focus{outline:2px solid var(--accent2);border-color:transparent}
+  button{cursor:pointer} button:hover{background:#2f3440}
+  .amount{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px}
+  .amount input{font-size:1.3rem;font-weight:600}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:var(--panel2);padding:10px 14px;color:var(--muted)}
+  .seg button.on{background:var(--accent2);color:#04130a;font-weight:700}
+  .swapwrap{display:flex;justify-content:center;margin:-4px 0 10px}
+  .swapwrap button{border-radius:99px;padding:6px 16px;font-size:.9rem}
+  .result{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px}
+  .lead{font-size:.85rem;color:var(--muted)}
+  .big{font-size:1.7rem;font-weight:800;color:var(--accent);margin:4px 0;word-break:break-word}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:.8rem;padding:3px 10px;border-radius:99px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+  .rate{margin-top:10px;font-size:.85rem;color:var(--muted)}
+  .note{margin-top:8px;font-size:.85rem;color:var(--warn)}
+  .legend{font-size:.82rem;color:var(--muted);line-height:1.6}
+  .legend b{color:var(--text)}
+  .err{color:var(--danger);font-size:.85rem;margin-top:4px}
+  .empty{color:var(--muted);text-align:center;padding:10px}
+  details{margin-bottom:14px}
+  summary{cursor:pointer;color:var(--muted);font-size:.9rem;padding:6px 2px}
+  .inner{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:6px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  pre{margin:8px 0 0;font-size:.82rem;white-space:pre-wrap;color:var(--text)}
+  .drop{outline:2px dashed var(--accent2);outline-offset:-6px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <h1>⛏ MC Item Exchange</h1>
+  <div class="sub">Pick what you have, pick what you want — see how much you get.</div>
+
+  <div class="card">
+    <div class="step"><span class="num">1</span> You give</div>
+    <div class="amount">
+      <input id="amt" type="number" inputmode="decimal" min="0" step="any" value="1" aria-label="Amount">
+      <div class="seg" id="unitSeg">
+        <button data-u="item">items</button>
+        <button data-u="ci" class="on">ci</button>
+        <button data-u="cs">cs</button>
+      </div>
+    </div>
+    <select id="from" aria-label="Item you give"></select>
+
+    <div class="swapwrap" style="margin-top:14px"><button id="swap">⇅ Swap</button></div>
+
+    <div class="step"><span class="num">2</span> You get</div>
+    <select id="to" aria-label="Item you get"></select>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="card legend">
+    <b>ci</b> = 64 raw items, or 8 non-stackable items &nbsp;·&nbsp; <b>cs</b> = 64 ci<br>
+    So 1 cs = 4096 raw items or 512 non-stackable items.
+  </div>
+
+  <details>
+    <summary>⚙ Rates file</summary>
+    <div class="inner">
+      <div class="legend" id="status"></div>
+      <div class="toolbar">
+        <button id="loadBtn">Load .mcx file</button>
+        <button id="resetBtn">Use built-in rates</button>
+        <input type="file" id="file" accept=".mcx,.txt" style="display:none">
+      </div>
+      <div id="problems"></div>
+      <details><summary>Show defined rates</summary><pre id="rules"></pre></details>
+    </div>
+  </details>
+</div>
+
+<!-- BUILT-IN RATES: edit here if you want them baked into this page -->
+<script type="text/plain" id="builtin">
+@raw Spruce wood, Diamond, Iron Ingot, Cobblestone
+@non Diamond Sword
+
+2 ci Spruce wood = 1 Diamond
+1 cs Cobblestone = 3 ci Iron Ingot
+1 Diamond Sword = 2 Diamond
+</script>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PER_CI={raw:64,non:8}, CI_PER_CS=64, KEY='mc-exchange-mcx';
+const norm=s=>s.trim().replace(/\s+/g,' ').toLowerCase();
+const per=(unit,type)=>unit==='cs'?PER_CI[type]*CI_PER_CS:unit==='ci'?PER_CI[type]:1;
+
+let data=null, unit='ci';
+
+function parse(text){
+  const names=new Map(), types=new Map(), problems=[], rules=[], edges=[];
+  const lines=text.split(/\r?\n/).map(l=>l.replace(/#.*$/,'').trim());
+  const nameOf=s=>{const k=norm(s); if(!names.has(k))names.set(k,s.trim().replace(/\s+/g,' ')); return k;};
+  lines.forEach(l=>{
+    const m=l.match(/^@(raw|non)\s+(.+)$/i);
+    if(m) m[2].split(',').filter(x=>x.trim()).forEach(n=>types.set(nameOf(n),m[1].toLowerCase()));
+  });
+  const side=s=>{
+    const m=s.trim().match(/^(\d+(?:\.\d+)?)\s*(cs|ci|items?)?\s+(.+)$/i);
+    if(!m)return null;
+    const u=(m[2]||'item').toLowerCase();
+    return {q:parseFloat(m[1]),unit:u.startsWith('item')?'item':u,key:nameOf(m[3])};
+  };
+  lines.forEach((l,i)=>{
+    if(!l||l[0]==='@')return;
+    const parts=l.split('=');
+    if(parts.length!==2){problems.push(`Line ${i+1}: expected "amount item = amount item"`);return;}
+    const a=side(parts[0]), b=side(parts[1]);
+    if(!a||!b||!(a.q>0)||!(b.q>0)){problems.push(`Line ${i+1}: couldn't read "${l}"`);return;}
+    const ta=types.get(a.key)||'raw', tb=types.get(b.key)||'raw';
+    edges.push([a.key,b.key,(b.q*per(b.unit,tb))/(a.q*per(a.unit,ta)),i+1]);
+    rules.push(l);
+  });
+  const adj=new Map(); names.forEach((_,k)=>adj.set(k,[]));
+  edges.forEach(([a,b,r,ln])=>{adj.get(a).push({to:b,r,ln});adj.get(b).push({to:a,r:1/r,ln});});
+  const val=new Map(), comp=new Map(); let c=0;
+  for(const start of names.keys()){
+    if(val.has(start))continue;
+    val.set(start,1);comp.set(start,c);const q=[start];
+    while(q.length){const x=q.shift();
+      for(const e of adj.get(x)){
+        const nv=val.get(x)/e.r;
+        if(!val.has(e.to)){val.set(e.to,nv);comp.set(e.to,c);q.push(e.to);}
+        else if(Math.abs(val.get(e.to)-nv)/nv>1e-6) problems.push(`Line ${e.ln}: conflicts with other rates for ${names.get(e.to)} (first path is used)`);
+      }}
+    c++;
+  }
+  return {names,types,val,comp,rules,problems:[...new Set(problems)]};
+}
+
+const typeOf=k=>data.types.get(k)||'raw';
+function fmt(n){
+  if(!isFinite(n))return '∞';
+  if(Math.abs(n)>=1e9||(Math.abs(n)<1e-4&&n!==0))return n.toExponential(3);
+  return (+n.toFixed(3)).toLocaleString(undefined,{maximumFractionDigits:3});
+}
+function breakdown(count,type){
+  const ci=PER_CI[type],cs=ci*CI_PER_CS;let n=Math.round(count*1000)/1000;
+  const a=Math.floor(n/cs);n-=a*cs;const b=Math.floor(n/ci);n-=b*ci;
+  const p=[];if(a)p.push(a.toLocaleString()+' cs');if(b)p.push(b+' ci');
+  if(n>0||!p.length)p.push((+n.toFixed(3))+(n===1?' item':' items'));return p.join(' + ');
+}
+
+function fillSelects(){
+  const keepF=$('from').value,keepT=$('to').value;
+  const opts=[...data.names].map(([k,n])=>`<option value="${esc(k)}">${esc(n)}</option>`).join('');
+  $('from').innerHTML=opts;$('to').innerHTML=opts;
+  if(data.names.has(keepF))$('from').value=keepF;
+  if(data.names.has(keepT))$('to').value=keepT;
+  else if(data.names.size>1)$('to').selectedIndex=1;
+}
+
+function render(){
+  const R=$('result');
+  if(!data.names.size){R.innerHTML='<div class="empty">No items yet — load a rates file under “⚙ Rates file”.</div>';return;}
+  const f=$('from').value,t=$('to').value,tf=typeOf(f),tt=typeOf(t);
+  const fn=data.names.get(f),tn=data.names.get(t);
+  const amt=Math.max(0,parseFloat($('amt').value)||0);
+  const have=amt*per(unit,tf);
+  if(f===t){R.innerHTML='<div class="lead">Pick two different items.</div>';return;}
+  if(data.comp.get(f)!==data.comp.get(t)){
+    R.innerHTML=`<div class="note">No exchange rate is set between ${esc(fn)} and ${esc(tn)}.</div>`;return;
+  }
+  const ratio=data.val.get(f)/data.val.get(t); // items of t per item of f
+  const got=have*ratio;
+  const whole=Math.floor(got+1e-9);
+  const oneCi=ratio*per('ci',tf)/per('ci',tt);
+  const note=(got-whole>1e-6&&whole>0)?`<div class="note">That's not a whole number of items. Whole items only: ${breakdown(whole,tt)}</div>`:'';
+  R.innerHTML=`
+    <div class="lead">${fmt(amt)} ${unit==='item'?'items':unit} of ${esc(fn)} gets you</div>
+    <div class="big">${breakdown(got,tt)}</div>
+    <div class="lead">of ${esc(tn)}</div>
+    <div class="chips">
+      <span class="chip">${fmt(got)} items</span>
+      <span class="chip">${fmt(got/per('ci',tt))} ci</span>
+      <span class="chip">${fmt(got/per('cs',tt))} cs</span>
+    </div>
+    ${note}
+    <div class="rate">Rate: 1 ci ${esc(fn)} = ${fmt(oneCi)} ci ${esc(tn)}</div>`;
+}
+
+function apply(text,label){
+  data=parse(text);
+  $('status').innerHTML=`Using <b>${esc(label)}</b> · ${data.names.size} items, ${data.rules.length} rates`;
+  $('problems').innerHTML=data.problems.map(p=>`<div class="err">⚠ ${esc(p)}</div>`).join('');
+  $('rules').textContent=data.rules.join('\n')||'(none)';
+  fillSelects();render();
+}
+
+['from','to','amt'].forEach(id=>$(id).addEventListener('input',render));
+$('unitSeg').addEventListener('click',e=>{
+  const u=e.target.dataset.u; if(!u)return;
+  unit=u; [...$('unitSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.u===u)); render();
+});
+$('swap').onclick=()=>{const a=$('from').value;$('from').value=$('to').value;$('to').value=a;render();};
+$('loadBtn').onclick=()=>$('file').click();
+function readFile(f){
+  const r=new FileReader();
+  r.onload=()=>{apply(r.result,f.name);try{localStorage.setItem(KEY,JSON.stringify({name:f.name,text:r.result}));}catch(e){}};
+  r.readAsText(f);
+}
+$('file').onchange=e=>{if(e.target.files[0])readFile(e.target.files[0]);e.target.value='';};
+$('resetBtn').onclick=()=>{try{localStorage.removeItem(KEY);}catch(e){} apply($('builtin').textContent,'built-in rates');};
+const app=$('app');
+['dragover','dragenter'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();app.classList.add('drop');}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();app.classList.remove('drop');}));
+document.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)readFile(f);});
+
+let saved=null;try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
+if(saved&&saved.text)apply(saved.text,saved.name);else apply($('builtin').textContent,'built-in rates');
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# MC Exchange rates file (.mcx)
+# Only you edit this file. The app just reads it.
+#
+# Item types (default is raw, so only list non-stackables if you like):
+#   @raw  = stackable raw material -> 1 ci = 64 items
+#   @non  = non-stackable item     -> 1 ci = 8 items
+# 1 cs = 64 ci
+#
+# Rates: "<amount> [cs|ci|items] <item> = <amount> [cs|ci|items] <item>"
+# No unit means single items.
+
+@raw Spruce wood, Diamond, Iron Ingot, Cobblestone, Kelp, Dried Kelp, Kelp block
+@non Diamond Sword
+
+2 ci Spruce wood = 1 Diamond
+1 cs Cobblestone = 3 ci Iron Ingot
+1 Diamond Sword = 2 Diamond
+4 ci Kelp block = 1 Diamond
+1 Diamond = 4 ci Kelp block
+36 ci Kelp = 1 Diamond
+24 ci Dried Kelp = 1 Diamond
+1 Diamond = 24 ci Dried Kelp
